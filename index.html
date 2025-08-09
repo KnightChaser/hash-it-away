@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hash Generator — MD5 / SHA-1 / SHA-2 / SHA-3</title>
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'media',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+              mono: ["Consolas", "ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Liberation Mono", "DejaVu Sans Mono", "monospace"],
+            },
+          },
+        },
+      };
+    </script>
+    <!-- Hashing libs: MD5 + jsSHA (SHA-1/224/256/384/512 and SHA3-224/256/384/512) -->
+    <script src="https://cdn.jsdelivr.net/npm/blueimp-md5@2.19.0/js/md5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jssha@3.3.1/dist/sha.js"></script>
+  </head>
+  <body class="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+    <div class="max-w-3xl mx-auto px-4 py-10">
+      <header class="mb-8">
+        <h1 class="text-3xl md:text-4xl font-bold tracking-tight">Hash It Away!</h1>
+        <p class="text-slate-600 dark:text-slate-400 mt-2">
+          Type anything. Get MD5, SHA-1/224/256/384/512, and SHA3-224/256/384/512 instantly. All in your browser.
+        </p>
+      </header>
+
+      <!-- Input card -->
+      <section class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm ring-1 ring-slate-200/60 dark:ring-slate-700/60">
+        <div class="p-4 md:p-6">
+          <label for="source" class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Input</label>
+          <textarea id="source" rows="4" placeholder="Paste or type your text here…" class="w-full resize-y rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 font-mono" autofocus></textarea>
+          <div class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            Your data never leaves this page. Hashing is performed locally in your browser only.
+          </div>
+        </div>
+      </section>
+
+      <!-- Results list (vertical 1×N) -->
+      <section class="mt-8 space-y-3" id="results"></section>
+
+      <footer class="mt-10 text-xs text-slate-500 dark:text-slate-400">
+        Algorithms: MD5, SHA-1/224/256/384/512, SHA3-224/256/384/512. Output is lowercase hex. Times are per-run, approximate.
+      </footer>
+
+      <details class="mt-6">
+        <summary class="cursor-pointer text-sm text-slate-600 dark:text-slate-300">Developer self-tests</summary>
+        <div class="mt-3 space-y-2">
+          <button id="run-tests" class="text-xs rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/60">
+            Run self-tests
+          </button>
+          <ul id="test-results" class="text-xs space-y-1"></ul>
+        </div>
+      </details>
+    </div>
+
+    <!-- Row template: ALG | [ value ] [ Copy ] (time) -->
+    <template id="hash-card-tpl">
+      <div class="bg-white dark:bg-slate-800 rounded-xl ring-1 ring-slate-200/60 dark:ring-slate-700/60 p-3 md:p-4">
+        <div class="flex items-center gap-3">
+          <div class="alg-label w-36 shrink-0 text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-200"></div>
+          <output class="flex-1 font-mono text-[13px] md:text-sm break-all bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2"></output>
+          <button type="button" class="copy-btn shrink-0 inline-flex items-center gap-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700/60 transition">
+            <span>Copy</span>
+          </button>
+          <span class="time text-[11px] text-slate-500 tabular-nums"></span>
+        </div>
+      </div>
+    </template>
+
+    <script>
+      // ---------- helpers ----------
+      const toHex = (buf) => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+
+      async function subtleHash(algorithm, message) {
+        const data = new TextEncoder().encode(message);
+        const buf = await crypto.subtle.digest(algorithm, data);
+        return toHex(buf);
+      }
+
+      function jsshaHex(algo, msg, opts) {
+        const shaObj = new jsSHA(algo, "TEXT", opts || {});
+        shaObj.update(msg);
+        return shaObj.getHash("HEX");
+      }
+
+      // ---------- algorithm table ----------
+      const ALGORITHMS = [
+        { name: "MD5", fn: (msg) => Promise.resolve(window.md5(msg)) },
+        { name: "SHA-1", fn: (msg) => subtleHash("SHA-1", msg) },
+        { name: "SHA-224", fn: (msg) => Promise.resolve(jsshaHex("SHA-224", msg)) },
+        { name: "SHA-256", fn: (msg) => subtleHash("SHA-256", msg) },
+        { name: "SHA-384", fn: (msg) => subtleHash("SHA-384", msg) },
+        { name: "SHA-512", fn: (msg) => subtleHash("SHA-512", msg) },
+        { name: "SHA3-224", fn: (msg) => Promise.resolve(jsshaHex("SHA3-224", msg)) },
+        { name: "SHA3-256", fn: (msg) => Promise.resolve(jsshaHex("SHA3-256", msg)) },
+        { name: "SHA3-384", fn: (msg) => Promise.resolve(jsshaHex("SHA3-384", msg)) },
+        { name: "SHA3-512", fn: (msg) => Promise.resolve(jsshaHex("SHA3-512", msg)) }
+      ];
+
+      // ---------- UI wiring ----------
+      const resultsEl = document.getElementById("results");
+      const tpl = document.getElementById("hash-card-tpl");
+
+      const cards = ALGORITHMS.map((alg) => {
+        const node = tpl.content.firstElementChild.cloneNode(true);
+        node.querySelector(".alg-label").textContent = alg.name + ":";
+        const out = node.querySelector("output");
+        const btn = node.querySelector(".copy-btn");
+        const tim = node.querySelector(".time");
+        btn.addEventListener("click", async () => {
+          const text = out.textContent.trim();
+          if (!text) return;
+          try {
+            await navigator.clipboard.writeText(text);
+            const span = btn.querySelector("span");
+            const old = span.textContent;
+            span.textContent = "Copied!";
+            btn.classList.add("ring-1", "ring-emerald-400");
+            setTimeout(() => {
+              span.textContent = old;
+              btn.classList.remove("ring-emerald-400");
+            }, 1200);
+          } catch (e) { console.error(e); }
+        });
+        resultsEl.appendChild(node);
+        return { alg, out, btn, tim };
+      });
+
+      const source = document.getElementById("source");
+      let debounce;
+      async function computeAll(value) {
+        if (!value) {
+          for (const c of cards) {
+            c.out.textContent = "";
+            c.tim.textContent = "";
+            c.btn.disabled = true;
+          }
+          return;
+        }
+        const runs = cards.map(async (c) => {
+          const t0 = performance.now();
+          const v = await c.alg.fn(value);
+          const secs = (performance.now() - t0) / 1000;
+          return { c, v, secs };
+        });
+        const results = await Promise.all(runs);
+        for (const r of results) {
+          r.c.out.textContent = r.v;
+          r.c.tim.textContent = r.secs.toFixed(3) + " s";
+          r.c.btn.disabled = !r.v;
+        }
+      }
+
+      source.addEventListener("input", () => {
+        clearTimeout(debounce);
+        const value = source.value;
+        debounce = setTimeout(() => computeAll(value), 120);
+      });
+
+      for (const c of cards) c.btn.disabled = true;
+
+      // ---------- self-tests ----------
+      const KNOWN = {
+        md5_empty: "d41d8cd98f00b204e9800998ecf8427e",
+        md5_abc: "900150983cd24fb0d6963f7d28e17f72",
+        sha1_empty: "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+        sha1_abc: "a9993e364706816aba3e25717850c26c9cd0d89d",
+        sha256_empty: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        sha256_abc: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+      };
+
+      function addTestResult(el, name, ok, extra = "") {
+        const li = document.createElement("li");
+        li.className = ok ? "text-emerald-600" : "text-rose-600";
+        li.textContent = (ok ? "✔ " : "✘ ") + name + (extra ? ` — ${extra}` : "");
+        el.appendChild(li);
+      }
+
+      document.getElementById("run-tests").addEventListener("click", async () => {
+        const list = document.getElementById("test-results");
+        list.innerHTML = "";
+        // Digests — strict vectors
+        addTestResult(list, "MD5(\"\")", window.md5("") === KNOWN.md5_empty);
+        addTestResult(list, "MD5(\"abc\")", window.md5("abc") === KNOWN.md5_abc);
+        addTestResult(list, "SHA-1(\"\")", (await subtleHash("SHA-1", "")) === KNOWN.sha1_empty);
+        addTestResult(list, "SHA-1(\"abc\")", (await subtleHash("SHA-1", "abc")) === KNOWN.sha1_abc);
+        addTestResult(list, "SHA-256(\"\")", (await subtleHash("SHA-256", "")) === KNOWN.sha256_empty);
+        addTestResult(list, "SHA-256(\"abc\")", (await subtleHash("SHA-256", "abc")) === KNOWN.sha256_abc);
+        // Length checks for other digests
+        addTestResult(list, "SHA-224 length (empty)", jsshaHex("SHA-224", "").length === 56, "expect 56 hex chars");
+        addTestResult(list, "SHA-384 length (empty)", (await subtleHash("SHA-384", "")).length === 96, "expect 96 hex chars");
+        addTestResult(list, "SHA-512 length (empty)", (await subtleHash("SHA-512", "")).length === 128, "expect 128 hex chars");
+        addTestResult(list, "SHA3-224 length (empty)", jsshaHex("SHA3-224", "").length === 56, "expect 56 hex chars");
+        addTestResult(list, "SHA3-256 length (empty)", jsshaHex("SHA3-256", "").length === 64, "expect 64 hex chars");
+        addTestResult(list, "SHA3-384 length (empty)", jsshaHex("SHA3-384", "").length === 96, "expect 96 hex chars");
+        addTestResult(list, "SHA3-512 length (empty)", jsshaHex("SHA3-512", "").length === 128, "expect 128 hex chars");
+      });
+    </script>
+  </body>
+</html>
+
