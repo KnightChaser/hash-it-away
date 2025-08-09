@@ -180,7 +180,7 @@
       function addTestResult(el, name, ok, extra = "") {
         const li = document.createElement("li");
         li.className = ok ? "text-emerald-600" : "text-rose-600";
-        li.textContent = (ok ? "✔ " : "✘ ") + name + (extra ? ` — ${extra}` : "");
+        li.textContent = (ok ? "[OK] " : "[FAILED] ") + name + (extra ? ` — ${extra}` : "");
         el.appendChild(li);
       }
 
